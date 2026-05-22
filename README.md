@@ -26,7 +26,7 @@ sudo dnf install -y nmap                       # Fedora/RHEL
 brew install nmap                              # macOS
 
 # 2. Clone the repository
-git clone https://github.com/yourusername/nshe.git
+git clone https://github.com/Nikku2716/Network-Scanning-And-Host-Enumeration.git
 cd nshe
 
 # 3. Install Python dependencies
