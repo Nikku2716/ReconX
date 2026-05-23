@@ -87,25 +87,38 @@ class C:
     RED_BG    = '\033[48;5;52m'
     YELLOW_BG = '\033[48;5;58m'
 
-BANNER = f"""\
-{C.GREEN}╔{'═'*36}╗{C.RESET}
-{C.GREEN}║{C.RESET}     ███╗  ██╗███████╗██╗  ██╗███████╗{C.RESET}     {C.GREEN}║{C.RESET}
-{C.GREEN}║{C.RESET}     ████╗ ██║██╔════╝██║  ██║██╔════╝{C.RESET}     {C.GREEN}║{C.RESET}
-{C.GREEN}║{C.RESET}     ██╔██╗██║███████╗███████║█████╗  {C.RESET}     {C.GREEN}║{C.RESET}
-{C.GREEN}║{C.RESET}     ██║╚████║╚════██║██╔══██║██╔══╝  {C.RESET}     {C.GREEN}║{C.RESET}
-{C.GREEN}║{C.RESET}     ██║ ╚███║███████║██║  ██║███████╗{C.RESET}     {C.GREEN}║{C.RESET}
-{C.GREEN}║{C.RESET}     ╚═╝  ╚══╝╚══════╝╚═╝  ╚═╝╚══════╝{C.RESET}     {C.GREEN}║{C.RESET}
-{C.GREEN}╚{'═'*36}╝{C.RESET}"""
-
 # ── Terminal Helpers ────────────────────────────────────────────────────
 
 def tw():
     return shutil.get_terminal_size((80, 20)).columns
 
+def hr(c=C.DIM):
+    return f'{c}{"─" * tw()}{C.RESET}'
+
+LOGO = [
+    '███╗  ██╗███████╗██╗  ██╗███████╗',
+    '████╗ ██║██╔════╝██║  ██║██╔════╝',
+    '██╔██╗██║███████╗███████║█████╗  ',
+    '██║╚████║╚════██║██╔══██║██╔══╝  ',
+    '██║ ╚███║███████║██║  ██║███████╗',
+    '╚═╝  ╚══╝╚══════╝╚═╝  ╚═╝╚══════╝',
+]
+
+def center(text):
+    w = tw()
+    vis = len(re.sub(r'\033\[[0-9;]*m', '', text))
+    if vis >= w:
+        return text
+    return ' ' * ((w - vis) // 2) + text
+
 def banner():
-    print(BANNER)
-    print(f'  {C.DIM}Network Scanning & Host Enumeration{C.RESET}')
-    print(f'  {C.DIM}{"━" * min(tw(), 36)}{C.RESET}\n')
+    w = tw()
+    for line in LOGO:
+        print(center(f'{C.CYAN}{line}{C.RESET}'))
+    sub = f'{C.CYAN}Network Scanner & Host Enumeration{C.RESET}'
+    ver = f'{C.DIM}v{C.RESET}{C.CYAN}1.0{C.RESET}'
+    print(center(f'{sub}  {ver}'))
+    print()
 
 def header(text):
     print(f'\n{C.BOLD}{C.CYAN}{text}{C.RESET}')
@@ -199,19 +212,16 @@ def parse_hosts_from_grepable(path):
         for line in f:
             if line.startswith('#') or not line.strip():
                 continue
-            parts = line.strip().split('\t')
-            if len(parts) < 2:
+            m = re.match(r'^Host:\s+(\S+)', line)
+            if not m:
                 continue
-            status_part = parts[0]
-            ip = parts[1]
-            if 'Up' not in status_part:
+            ip = m.group(1)
+            if 'Status: Up' not in line:
                 continue
             mac = ''
-            for p in parts:
-                if 'MAC:' in p:
-                    m = re.search(r'MAC:\s*([0-9A-Fa-f:]+)', p)
-                    if m:
-                        mac = m.group(1)
+            mm = re.search(r'MAC:\s*([0-9A-Fa-f:]+)', line)
+            if mm:
+                mac = mm.group(1)
             hosts[ip] = {'ip': ip, 'mac': mac, 'os': '', 'os_conf': 0, 'ports': []}
     return hosts
 
@@ -804,15 +814,34 @@ def cmd_scan(target, profile='standard', grab_banners=False,
     )
 
     hosts = {}
-    gn = RAW / f'discovery_{ts}.gnmap'
-    if gn.exists():
-        hosts = parse_hosts_from_grepable(gn)
+    xml = RAW / f'discovery_{ts}.xml'
+    if xml.exists():
+        hosts = parse_hosts_from_nmap(xml)
+    if not hosts:
+        gn = RAW / f'discovery_{ts}.gnmap'
+        if gn.exists():
+            hosts = parse_hosts_from_grepable(gn)
+    if not hosts:
+        nm = RAW / f'discovery_{ts}.nmap'
+        if nm and nm.exists():
+            for line in nm.read_text().splitlines():
+                m = re.search(r'Nmap scan report for ([\d.]+)', line)
+                if m:
+                    hosts[m.group(1)] = {'ip': m.group(1), 'mac': '', 'os': '', 'os_conf': 0, 'ports': []}
     if not hosts:
         print(f'  {C.RED}No live hosts found.{C.RESET}')
         return
 
     live_ips = list(hosts.keys())
-    print(f'  {C.GREEN}{len(live_ips)} host(s) up.{C.RESET}\n')
+    if live_ips:
+        print(f'  {C.GREEN} {len(live_ips)} host(s) up:{C.RESET}')
+        for ip in live_ips:
+            h = hosts[ip]
+            mac = h.get('mac', '') or '—'
+            print(f'    {C.GREEN}{ip}{C.RESET}  {C.DIM}{mac}{C.RESET}')
+        print()
+    else:
+        print(f'  {C.YELLOW}No hosts responded.{C.RESET}\n')
 
     if profile == 'quick':
         save_hosts(hosts)
@@ -828,13 +857,14 @@ def cmd_scan(target, profile='standard', grab_banners=False,
         scan_cmd += stealth_flags
         scan_cmd += ['-sV', '-O', ports_flag, '--reason', '-oA', str(scan_file)]
     else:
-        scan_cmd += ['-sS', '-sV', '-O', ports_flag, '--min-rate', '3000', '--reason', '-oA', str(scan_file)]
-    scan_cmd += live_ips
+        scan_cmd += ['-sS', '-sV', '-O', ports_flag, '-T4', '--min-rate', '3000', '--max-retries', '1', '--host-timeout', '10m', '--reason', '-oA', str(scan_file)]
+    scan_cmd += ['-Pn'] + live_ips
 
+    scan_timeout = 1800 if profile == 'deep' else 900
     nmap_run(
         scan_cmd,
         f'Port/Service/OS scan ({len(live_ips)} hosts)',
-        timeout=900,
+        timeout=scan_timeout,
     )
 
     xml = RAW / f'scan_{ts}.xml'
@@ -953,6 +983,30 @@ def cmd_vuln_scan(target, timeout=1200,
 
 # ── Interactive Menu ────────────────────────────────────────────────────
 
+def menu_stats():
+    meta = load_meta()
+    hosts = load_hosts()
+    vulns = load_vulns()
+    parts = []
+    if meta:
+        parts.append(f'{C.DIM}Target:{C.RESET} {C.GREEN}{meta.get("target", "?")}{C.RESET}')
+        parts.append(f'{C.DIM}Date:{C.RESET} {meta.get("date", "?")[:10]}')
+    parts.append(f'{C.GREEN}{len(hosts)}{C.RESET} {C.DIM}hosts{C.RESET}')
+    n_ports = sum(1 for h in hosts.values() for p in h['ports'] if p['state'] == 'open')
+    parts.append(f'{C.GREEN}{n_ports}{C.RESET} {C.DIM}ports{C.RESET}')
+    if vulns:
+        parts.append(f'{C.RED}{len(vulns)}{C.RESET} {C.DIM}vulns{C.RESET}')
+    else:
+        parts.append(f'{C.DIM}0 vulns{C.RESET}')
+    if meta:
+        parts.append(f'{C.DIM}{meta.get("duration", "")}{C.RESET}')
+    line = '  │ '.join(parts)
+    w = tw() - 4
+    if len(line) > w:
+        line = line[:w-3] + '..'
+    print(f'  {line}')
+    print(f'  {C.DIM}{"─" * (tw() - 2)}{C.RESET}')
+
 def menu():
     options = [
         ('1', 'Status',     show_status),
@@ -970,14 +1024,26 @@ def menu():
     ]
     while True:
         banner()
-        if not (PAR / 'hosts.txt').exists():
-            print(f'  {C.YELLOW}No cached scan data.{C.RESET}')
-            print(f'  Run {C.GREEN}scan <target>{C.RESET} first.\n')
+        has_data = (PAR / 'hosts.txt').exists()
+        if has_data:
+            menu_stats()
         else:
-            show_status()
-        for key, label, _ in options:
-            print(f'  {C.BOLD}{C.CYAN}[{key}]{C.RESET} {label}')
-        print()
+            print(f'  {C.YELLOW}No cached scan data.{C.RESET}')
+            print(f'  {C.DIM}{"─" * (tw() - 2)}{C.RESET}')
+
+        cols = max(2, min(4, tw() // 20))
+        cw = (tw() - 4 - (cols - 1) * 2) // cols
+        rows = [options[i:i+cols] for i in range(0, len(options), cols)]
+        for row in rows:
+            cells = []
+            for key, label, _ in row:
+                badge = f'{C.BOLD}{C.CYAN}[{key}]{C.RESET}'
+                vis = len(f'[{key}] {label}')
+                pad = max(0, cw - vis)
+                cells.append(f'{badge} {label}{" " * pad}')
+            print(f'  {"  ".join(cells)}')
+        print(f'  {C.DIM}{"─" * (tw() - 2)}{C.RESET}')
+
         try:
             choice = input(f'  {C.GREEN}?{C.RESET} Select: ').strip().lower()
         except (EOFError, KeyboardInterrupt):
@@ -993,7 +1059,7 @@ def menu():
                 continue
             if tgt:
                 cmd_scan(tgt)
-                input(f'  {C.DIM}Press Enter...{C.RESET}')
+            input(f'  {C.DIM}Press Enter...{C.RESET}')
             continue
         if choice == 'r':
             fmt = input(f'  {C.YELLOW}Format{C.RESET} (html/pdf, default=html): ').strip().lower() or 'html'
