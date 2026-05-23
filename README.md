@@ -27,10 +27,14 @@ brew install nmap                              # macOS
 
 # 2. Clone the repository
 git clone https://github.com/Nikku2716/Network-Scanning-And-Host-Enumeration.git
-cd nshe
+cd Network-Scanning-And-Host-Enumeration
+
+# 3. Installing & creating virtual enviorment
+curl -LsSf https://astral.sh/uv/install.sh | sh
+uv venv
 
 # 3. Install Python dependencies
-pip install -r requirements.txt
+uv pip install -r requirements.txt
 
 # 4. Make the CLI executable
 chmod +x scripts/cli.py
@@ -43,7 +47,7 @@ chmod +x scripts/cli.py
 ./scripts/cli.py --help
 
 # Scan a subnet
-./scripts/cli.py scan 192.168.1.0/24
+./scripts/cli.py scan {Target}
 
 # Interactive menu
 ./scripts/cli.py menu
@@ -58,16 +62,16 @@ chmod +x scripts/cli.py
 
 ```bash
 # Basic scan (SYN scan on top 1000 ports + version + OS detection)
-./scripts/cli.py scan 192.168.1.0/24
+./scripts/cli.py scan {Target}
 
 # Quick scan — host discovery only
-./scripts/cli.py scan 10.0.0.0/24 --quick
+./scripts/cli.py scan {Target} --quick
 
 # Deep scan — all 65535 ports
-./scripts/cli.py scan 10.0.0.1 --deep
+./scripts/cli.py scan {Target} --deep
 
 # Scan with banner grabbing
-./scripts/cli.py scan 192.168.1.0/24 --banners
+./scripts/cli.py scan {Target} --banners
 ```
 
 ### Stealth Scanning
@@ -80,26 +84,26 @@ chmod +x scripts/cli.py
 ./scripts/cli.py scan 10.0.0.1 --decoy 10.0.0.2,10.0.0.3,10.0.0.4
 
 # Fragment packets + custom source port
-./scripts/cli.py scan 10.0.0.1 --fragment --source-port 53
+./scripts/cli.py scan {Target} --fragment --source-port 53
 
 # MAC spoofing + custom TTL + timing
-./scripts/cli.py scan 10.0.0.1 --spoof-mac 0 --ttl 64 --timing 1
+./scripts/cli.py scan {Target} --spoof-mac 0 --ttl 64 --timing 1
 
 # Bad checksum scan
-./scripts/cli.py scan 10.0.0.1 --badsum
+./scripts/cli.py scan {Target} --badsum
 
 # Full stealth with all options
 ./scripts/cli.py scan target.com --stealth --decoy RND:5 --source-port 1234 --data-length 100 --ttl 128
 
 # Stealth vulnerability scan
-./scripts/cli.py vuln-scan 10.0.0.1 --stealth
+./scripts/cli.py vuln-scan {Target} --stealth
 ```
 
 ### Vulnerability Scanning
 
 ```bash
 # Run Nmap NSE vulnerability scripts
-./scripts/cli.py vuln-scan 192.168.1.10
+./scripts/cli.py vuln-scan {Target}
 ```
 
 ### CVE Lookup
@@ -139,10 +143,10 @@ chmod +x scripts/cli.py
 ./scripts/cli.py schedule list
 
 # Add a daily scan
-./scripts/cli.py schedule add 10.0.0.0/24 daily
+./scripts/cli.py schedule add {Target} daily
 
 # Weekly scan with deep profile
-./scripts/cli.py schedule add 192.168.1.0/24 weekly --profile deep
+./scripts/cli.py schedule add {Target} weekly --profile deep
 
 # Remove schedule
 ./scripts/cli.py schedule remove 1
