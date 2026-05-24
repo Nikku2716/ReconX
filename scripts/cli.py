@@ -3,6 +3,7 @@
 
 Usage:
   ./cli.py scan <target> [--quick|--standard|--deep] [--banners]   Run scan
+  ./cli.py scan <target> --aggressive                               Aggressive scan (-A: OS, scripts, traceroute)
   ./cli.py scan <target> --stealth                                  Stealth scan (decoys, fragment, slow timing)
   ./cli.py scan <target> --decoy IP1,IP2 --fragment --spoof-mac 0  Custom evasion
   ./cli.py vuln-scan <target>                                       Run NSE vulnerability scan
@@ -23,6 +24,9 @@ Usage:
   ./cli.py phases                                                   Scan phases
   ./cli.py all                                                      Full report
   ./cli.py menu                                                     Interactive menu
+
+Aggressive options:
+  --aggressive              Aggressive scan (-A: OS, version, scripts, traceroute, T4)
 
 Stealth options (add to scan/vuln-scan):
   --stealth                 Full stealth (SYN, T2, RND:10 decoys, fragment, random MAC)
@@ -728,11 +732,15 @@ def validate_target(target):
 
 # ── Stealth Options Builder ────────────────────────────────────────────
 
-def build_stealth_flags(stealth=False, decoy=None, fragment=False,
-                         spoof_mac=None, source_port=None,
+def build_stealth_flags(stealth=False, aggressive=False, decoy=None,
+                         fragment=False, spoof_mac=None, source_port=None,
                          data_length=None, ttl=None, badsum=False,
                          timing=None):
     flags = []
+    if aggressive:
+        flags += ['-A']  # OS detection, version, scripts, traceroute
+        if not stealth and timing is None:
+            flags += ['-T4']
     if stealth:
         flags += ['-sS', '-T2']
         flags += ['-D', 'RND:10']
@@ -781,17 +789,17 @@ def nmap_run(args, label, timeout=600):
         sys.exit(1)
 
 def cmd_scan(target, profile='standard', grab_banners=False,
-             stealth=False, decoy=None, fragment=False,
+             aggressive=False, stealth=False, decoy=None, fragment=False,
              spoof_mac=None, source_port=None,
              data_length=None, ttl=None, badsum=False,
              timing=None):
     nmap = require_nmap()
 
     stealth_flags = build_stealth_flags(
-        stealth=stealth, decoy=decoy, fragment=fragment,
-        spoof_mac=spoof_mac, source_port=source_port,
-        data_length=data_length, ttl=ttl, badsum=badsum,
-        timing=timing,
+        stealth=stealth, aggressive=aggressive, decoy=decoy,
+        fragment=fragment, spoof_mac=spoof_mac,
+        source_port=source_port, data_length=data_length,
+        ttl=ttl, badsum=badsum, timing=timing,
     )
 
     ts = datetime.now().strftime('%Y%m%d_%H%M%S')
@@ -803,6 +811,8 @@ def cmd_scan(target, profile='standard', grab_banners=False,
     print(f'  {C.DIM}Output:{C.RESET}  {RAW}')
     if grab_banners:
         print(f'  {C.DIM}Banners:{C.RESET} {C.GREEN}enabled{C.RESET}')
+    if aggressive:
+        print(f'  {C.DIM}Aggressive:{C.RESET} {C.RED}enabled (-A: OS, scripts, traceroute){C.RESET}')
     if stealth:
         print(f'  {C.DIM}Stealth:{C.RESET} {C.GREEN}enabled{C.RESET}')
     print()
@@ -857,6 +867,9 @@ def cmd_scan(target, profile='standard', grab_banners=False,
     if stealth:
         scan_cmd += stealth_flags
         scan_cmd += ['-sV', '-O'] + ports_flags + ['--reason', '-oA', str(scan_file)]
+    elif aggressive:
+        scan_cmd += stealth_flags  # contains -A and -T4
+        scan_cmd += ['-sV'] + ports_flags + ['--min-rate', '3000', '--max-retries', '2', '--host-timeout', '15m', '--reason', '-oA', str(scan_file)]
     else:
         scan_cmd += ['-sS', '-sV', '-O'] + ports_flags + ['-T4', '--min-rate', '3000', '--max-retries', '1', '--host-timeout', '10m', '--reason', '-oA', str(scan_file)]
     scan_cmd += ['-Pn'] + live_ips
@@ -907,17 +920,17 @@ def cmd_scan(target, profile='standard', grab_banners=False,
     print(f'  {C.DIM}Results cached. Use ./scripts/cli.py menu to explore.{C.RESET}\n')
 
 def cmd_vuln_scan(target, timeout=1200,
-                  stealth=False, decoy=None, fragment=False,
-                  spoof_mac=None, source_port=None,
+                  aggressive=False, stealth=False, decoy=None,
+                  fragment=False, spoof_mac=None, source_port=None,
                   data_length=None, ttl=None, badsum=False,
                   timing=None):
     validate_target(target)
     nmap = require_nmap()
     stealth_flags = build_stealth_flags(
-        stealth=stealth, decoy=decoy, fragment=fragment,
-        spoof_mac=spoof_mac, source_port=source_port,
-        data_length=data_length, ttl=ttl, badsum=badsum,
-        timing=timing,
+        stealth=stealth, aggressive=aggressive, decoy=decoy,
+        fragment=fragment, spoof_mac=spoof_mac,
+        source_port=source_port, data_length=data_length,
+        ttl=ttl, badsum=badsum, timing=timing,
     )
     banner()
     print(f'  {C.DIM}Target:{C.RESET} {C.GREEN}{target}{C.RESET}')
@@ -929,6 +942,8 @@ def cmd_vuln_scan(target, timeout=1200,
     vuln_cmd = [nmap]
     if stealth:
         vuln_cmd += [f for f in stealth_flags if f != '-sS']
+    elif aggressive:
+        vuln_cmd += stealth_flags  # contains -A and -T4
     vuln_cmd += ['--script', 'vuln', target, '-oA', str(vuln_file)]
     r = nmap_run(
         vuln_cmd,
@@ -1166,6 +1181,7 @@ def main():
         epilog=textwrap.dedent('''\
             Examples:
               ./cli.py scan 192.168.1.0/24 --deep --banners  Full scan with banners
+              ./cli.py scan 192.168.1.0/24 --aggressive       Aggressive scan (OS, scripts, traceroute)
               ./cli.py scan target.com --stealth              Stealth scan
               ./cli.py scan 10.0.0.1 --decoy RND:5 --fragment --source-port 53  Custom evasion
               ./cli.py vuln-scan 192.168.1.10                NSE vuln scan
@@ -1189,6 +1205,8 @@ def main():
                         help='CIDR or IP target')
     parser.add_argument('--quick', action='store_true', help='Host discovery only')
     parser.add_argument('--deep',  action='store_true', help='Full port scan (all 65535)')
+    parser.add_argument('--aggressive', action='store_true',
+                        help='Aggressive scan (-A: OS, version, scripts, traceroute)')
     parser.add_argument('--banners', action='store_true', help='Dedicated banner grabbing phase')
 
     # ── Stealth / Evasion Options ──
@@ -1229,6 +1247,7 @@ def main():
         validate_target(args.target)
         profile = 'deep' if args.deep else 'quick' if args.quick else 'standard'
         cmd_scan(args.target, profile, grab_banners=args.banners,
+                 aggressive=args.aggressive,
                  stealth=args.stealth, decoy=args.decoy,
                  fragment=args.fragment, spoof_mac=args.spoof_mac,
                  source_port=args.source_port, data_length=args.data_length,
@@ -1239,6 +1258,7 @@ def main():
             print(f'{C.RED}Error:{C.RESET} Provide a target.')
             sys.exit(1)
         cmd_vuln_scan(args.target,
+                       aggressive=args.aggressive,
                        stealth=args.stealth, decoy=args.decoy,
                        fragment=args.fragment, spoof_mac=args.spoof_mac,
                        source_port=args.source_port, data_length=args.data_length,
