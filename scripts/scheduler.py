@@ -136,6 +136,10 @@ def run_daemon():
             sid = s['id']
             _, period = INTERVAL_MAP.get(s['interval'], ('', 86400))
             last_run = s.get('last_run')
+            try:
+                last_run = float(last_run) if last_run is not None else None
+            except (ValueError, TypeError):
+                last_run = None
             next_run = last_run + period if last_run else 0
 
             last_checked_sid = last_checked.get(sid, 0)

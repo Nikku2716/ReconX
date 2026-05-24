@@ -236,27 +236,24 @@ def parse_vulns_from_nmap(path):
                 ip = a.get('addr')
         if not ip:
             continue
-        for tbl in host.findall('.//table'):
-            sid = tbl.get('id', '')
-            if not sid:
+        # NSE scripts appear as <script> elements under <hostscript> or <port>
+        for script in host.findall('.//script'):
+            sid = script.get('id', '')
+            output = script.get('output', '')
+            if not sid or not output:
                 continue
-            for script in tbl.findall('script'):
-                sid2 = script.get('id', '')
-                output = script.get('output', '')
-                if not sid2 or not output:
-                    continue
-                sev = 'MEDIUM'
-                if any(w in output.lower() for w in ['vulnerable', 'backdoor', 'cve', 'high']):
-                    sev = 'HIGH'
-                elif any(w in output.lower() for w in ['info', 'discovered', 'enabled']):
-                    sev = 'LOW'
-                vulns.append({
-                    'host': ip,
-                    'severity': sev,
-                    'title': f'{sid2}: {output[:80]}',
-                    'detail': output,
-                    'scripts': [sid2],
-                })
+            sev = 'MEDIUM'
+            if any(w in output.lower() for w in ['vulnerable', 'backdoor', 'cve', 'high']):
+                sev = 'HIGH'
+            elif any(w in output.lower() for w in ['info', 'discovered', 'enabled']):
+                sev = 'LOW'
+            vulns.append({
+                'host': ip,
+                'severity': sev,
+                'title': f'{sid}: {output[:80]}',
+                'detail': output,
+                'scripts': [sid],
+            })
     return vulns
 
 def parse_vulns_from_text(path):
@@ -680,7 +677,11 @@ def show_cve_lookup(service=None, version=None, all_flag=False):
             cvss = cve.get('cvss', 'N/A')
             summary = cve.get('summary', '') or ''
             summary_short = summary[:100] + '...' if len(summary) > 100 else summary
-            cvss_col = C.RED if (isinstance(cvss, (int, float)) and cvss >= 7) or (isinstance(cvss, str) and cvss != 'N/A' and float(cvss) >= 7) else C.YELLOW
+            try:
+                cvss_num = float(cvss) if cvss and cvss != 'N/A' else 0
+            except (ValueError, TypeError):
+                cvss_num = 0
+            cvss_col = C.RED if cvss_num >= 7 else C.YELLOW
             print(f'    {C.BOLD}{cve_id}{C.RESET}  {cvss_col}CVSS:{cvss}{C.RESET}')
             print(f'      {C.DIM}{summary_short}{C.RESET}')
     print()
@@ -849,15 +850,15 @@ def cmd_scan(target, profile='standard', grab_banners=False,
         save_meta(target, time.time() - t0)
         return
 
-    ports_flag = '-p-' if profile == 'deep' else '--top-ports 1000'
+    ports_flags = ['-p-'] if profile == 'deep' else ['--top-ports', '1000']
     scan_file = RAW / f'scan_{ts}'
 
     scan_cmd = [nmap]
     if stealth:
         scan_cmd += stealth_flags
-        scan_cmd += ['-sV', '-O', ports_flag, '--reason', '-oA', str(scan_file)]
+        scan_cmd += ['-sV', '-O'] + ports_flags + ['--reason', '-oA', str(scan_file)]
     else:
-        scan_cmd += ['-sS', '-sV', '-O', ports_flag, '-T4', '--min-rate', '3000', '--max-retries', '1', '--host-timeout', '10m', '--reason', '-oA', str(scan_file)]
+        scan_cmd += ['-sS', '-sV', '-O'] + ports_flags + ['-T4', '--min-rate', '3000', '--max-retries', '1', '--host-timeout', '10m', '--reason', '-oA', str(scan_file)]
     scan_cmd += ['-Pn'] + live_ips
 
     scan_timeout = 1800 if profile == 'deep' else 900
@@ -879,7 +880,7 @@ def cmd_scan(target, profile='standard', grab_banners=False,
         banner_cmd = [nmap]
         if stealth:
             banner_cmd += [f for f in stealth_flags if f not in ('-sS', '-T2', '-f')]
-        banner_cmd += ['-sV', '--script', 'banner', ports_flag, '-oA', str(banner_file)]
+        banner_cmd += ['-sV', '--script', 'banner'] + ports_flags + ['-oA', str(banner_file)]
         banner_cmd += live_ips
         nmap_run(
             banner_cmd,
@@ -1120,7 +1121,11 @@ def main():
                 print(f'      Profile:  {entry["profile"]}')
         elif sub == 'remove':
             banner()
-            sid = int(raw[1]) if len(raw) > 1 else None
+            try:
+                sid = int(raw[1]) if len(raw) > 1 else None
+            except ValueError:
+                print(f'{C.RED}Error:{C.RESET} Schedule ID must be an integer.')
+                return
             if sid is None:
                 print(f'{C.RED}Error:{C.RESET} Usage: schedule remove <id>')
             elif scheduler.remove_schedule(sid):
@@ -1129,7 +1134,11 @@ def main():
                 print(f'  {C.RED}Schedule #{sid} not found.{C.RESET}')
         elif sub == 'toggle':
             banner()
-            sid = int(raw[1]) if len(raw) > 1 else None
+            try:
+                sid = int(raw[1]) if len(raw) > 1 else None
+            except ValueError:
+                print(f'{C.RED}Error:{C.RESET} Schedule ID must be an integer.')
+                return
             if sid is None:
                 print(f'{C.RED}Error:{C.RESET} Usage: schedule toggle <id>')
             else:
