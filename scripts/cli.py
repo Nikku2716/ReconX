@@ -93,6 +93,14 @@ class C:
 
 # ── Terminal Helpers ────────────────────────────────────────────────────
 
+def strip_ansi(text):
+    """Remove ANSI escape sequences from a string for visible-width calculation."""
+    return re.sub(r'\033\[[0-9;]*m', '', str(text))
+
+def vis_len(text):
+    """Return the visible length of a string (excluding ANSI codes)."""
+    return len(strip_ansi(text))
+
 def tw():
     return shutil.get_terminal_size((80, 20)).columns
 
@@ -125,8 +133,11 @@ def banner():
     print()
 
 def header(text):
-    print(f'\n{C.BOLD}{C.CYAN}{text}{C.RESET}')
-    print(f'{C.DIM}{"━" * min(tw(), len(text))}{C.RESET}')
+    w = min(tw(), max(len(text) + 4, 40))
+    print(f'\n{C.BOLD}{C.CYAN}┌{"─" * (w - 2)}┐{C.RESET}')
+    pad = w - 2 - len(text) - 2
+    print(f'{C.BOLD}{C.CYAN}│ {text}{" " * max(pad, 0)} │{C.RESET}')
+    print(f'{C.BOLD}{C.CYAN}└{"─" * (w - 2)}┘{C.RESET}')
 
 def status_badge(s):
     if s in ('up', 'open'):
@@ -137,19 +148,52 @@ def sev_badge(s):
     bg = {'CRITICAL': C.RED_BG, 'HIGH': C.RED_BG, 'MEDIUM': C.YELLOW_BG, 'LOW': C.GREEN_BG}.get(s, '')
     return f'{bg} {C.BOLD}{s}{C.RESET} '
 
+def pad_cell(text, width):
+    """Pad a string with ANSI codes to a fixed visible width."""
+    text = str(text)
+    visible = vis_len(text)
+    padding = max(0, width - visible)
+    return text + ' ' * padding
+
 def table(rows, headers):
     if not rows:
+        print(f'  {C.DIM}(no data){C.RESET}')
         return
-    cw = [max(len(str(r[i])) for r in rows + [headers]) + 2 for i in range(len(headers))]
-    sep = f' {C.DIM}│{C.RESET} '
-    ln  = f'{C.DIM}{"─" * (sum(cw) + len(sep) * (len(headers) - 1))}{C.RESET}'
-    hdr = sep.join(f'{C.BOLD}{h:<{cw[i]}}{C.RESET}' for i, h in enumerate(headers))
-    print(ln)
-    print(hdr)
-    print(ln)
+    ncols = len(headers)
+    # Calculate column widths using visible lengths (stripped of ANSI codes)
+    cw = []
+    for i in range(ncols):
+        max_w = vis_len(headers[i])
+        for r in rows:
+            cell_w = vis_len(r[i]) if i < len(r) else 0
+            if cell_w > max_w:
+                max_w = cell_w
+        cw.append(max_w + 2)  # 2 chars padding
+
+    # Build separator and border lines using visible widths
+    col_sep = f' {C.DIM}│{C.RESET} '
+    border_parts = [('─' * w) for w in cw]
+    top_border    = f'  {C.DIM}┌{"┬".join(border_parts)}┐{C.RESET}'
+    mid_border    = f'  {C.DIM}├{"┼".join(border_parts)}┤{C.RESET}'
+    bot_border    = f'  {C.DIM}└{"┴".join(border_parts)}┘{C.RESET}'
+
+    # Header row
+    hdr_cells = [f'{C.BOLD}{pad_cell(h, cw[i])}{C.RESET}' for i, h in enumerate(headers)]
+    hdr_line = col_sep.join(hdr_cells)
+
+    print(top_border)
+    print(f'  {C.DIM}│{C.RESET} {hdr_line} {C.DIM}│{C.RESET}')
+    print(mid_border)
+
+    # Data rows
     for row in rows:
-        print(sep.join(str(c).ljust(cw[i]) for i, c in enumerate(row)))
-    print(ln)
+        cells = []
+        for i in range(ncols):
+            cell = row[i] if i < len(row) else ''
+            cells.append(pad_cell(cell, cw[i]))
+        print(f'  {C.DIM}│{C.RESET} {col_sep.join(cells)} {C.DIM}│{C.RESET}')
+
+    print(bot_border)
 
 # ── Nmap Detection ──────────────────────────────────────────────────────
 
@@ -382,10 +426,12 @@ def show_status():
     meta = load_meta()
     hosts = load_hosts()
     vulns = load_vulns()
+    header('SCAN STATUS')
     if meta:
-        print(f'  {C.DIM}Target:{C.RESET}   {C.GREEN}{meta.get("target", "?")}{C.RESET}')
-        print(f'  {C.DIM}Date:{C.RESET}    {meta.get("date", "?")}')
-        print(f'  {C.DIM}Duration:{C.RESET} {meta.get("duration", "?")}')
+        lbl_w = 18  # fixed label width for alignment
+        print(f'  {C.DIM}{"Target:":<{lbl_w}}{C.RESET} {C.GREEN}{meta.get("target", "?")}{C.RESET}')
+        print(f'  {C.DIM}{"Date:":<{lbl_w}}{C.RESET} {meta.get("date", "?")}')
+        print(f'  {C.DIM}{"Duration:":<{lbl_w}}{C.RESET} {meta.get("duration", "?")}')
     else:
         print(f'  {C.YELLOW}No scans have been run yet.{C.RESET}')
         print(f'  Run: {C.GREEN}./scripts/cli.py scan <target>{C.RESET}\n')
@@ -395,17 +441,18 @@ def show_status():
     n_ports = sum(1 for h in hosts.values() for p in h['ports'] if p['state'] == 'open')
     n_svcs  = len(set((p['service'], p['version']) for h in hosts.values() for p in h['ports'] if p['service']))
     n_vulns = len(vulns)
-    print(f'  {C.DIM}Hosts:{C.RESET}           {C.GREEN}{n_hosts}{C.RESET}')
-    print(f'  {C.DIM}Open Ports:{C.RESET}       {C.GREEN}{n_ports}{C.RESET}')
-    print(f'  {C.DIM}Services:{C.RESET}         {C.GREEN}{n_svcs}{C.RESET}')
-    print(f'  {C.DIM}Vulnerabilities:{C.RESET}  {C.RED if n_vulns else C.GREEN}{n_vulns}{C.RESET}')
+    lbl_w = 18
+    print(f'  {C.DIM}{"Hosts:":<{lbl_w}}{C.RESET} {C.GREEN}{n_hosts}{C.RESET}')
+    print(f'  {C.DIM}{"Open Ports:":<{lbl_w}}{C.RESET} {C.GREEN}{n_ports}{C.RESET}')
+    print(f'  {C.DIM}{"Services:":<{lbl_w}}{C.RESET} {C.GREEN}{n_svcs}{C.RESET}')
+    print(f'  {C.DIM}{"Vulnerabilities:":<{lbl_w}}{C.RESET} {C.RED if n_vulns else C.GREEN}{n_vulns}{C.RESET}')
 
     hosts_dict = load_hosts()
     if vulns and hosts_dict:
         try:
             enriched = enrich_vulns_with_cve(vulns, hosts_dict)
             score, sev = overall_risk_score(enriched, hosts_dict)
-            print(f'  {C.DIM}Risk Score:{C.RESET}       {sev_badge(sev)} {C.BOLD}{score}{C.RESET}/10')
+            print(f'  {C.DIM}{"Risk Score:":<{lbl_w}}{C.RESET} {sev_badge(sev)} {C.BOLD}{score}{C.RESET}/10')
         except Exception:
             pass
     print()
@@ -505,7 +552,9 @@ def show_vulns():
         enriched = vulns
 
     sev_order = {'CRITICAL': 0, 'HIGH': 1, 'MEDIUM': 2, 'LOW': 3}
-    for v in sorted(enriched, key=lambda x: sev_order.get(x.get('severity', 'LOW'), 99)):
+    sorted_vulns = sorted(enriched, key=lambda x: sev_order.get(x.get('severity', 'LOW'), 99))
+
+    for idx, v in enumerate(sorted_vulns, 1):
         risk = None
         if hosts:
             host_ip = v.get('host', '')
@@ -520,7 +569,26 @@ def show_vulns():
                 pass
 
         sev = v.get('severity', 'LOW')
-        cve_info = ''
+        title = v.get('title', 'Unknown')
+        # Truncate long titles
+        if len(title) > 70:
+            title = title[:67] + '...'
+
+        # Card-style layout for each vulnerability
+        card_w = min(tw() - 4, 80)
+        print(f'  {C.DIM}┌{"─" * card_w}┐{C.RESET}')
+        risk_str = f'  Risk: {risk:.1f}/10' if risk is not None else ''
+        print(f'  {C.DIM}│{C.RESET} {sev_badge(sev)}  {C.BOLD}{title}{C.RESET}')
+        lbl_w = 10
+        print(f'  {C.DIM}│{C.RESET}   {C.DIM}{"Host:":<{lbl_w}}{C.RESET} {C.GREEN}{v.get("host", "?")}{C.RESET}')
+        # Wrap detail text to fit in card
+        detail = v.get('detail', '')
+        if len(detail) > card_w - lbl_w - 6:
+            detail = detail[:card_w - lbl_w - 9] + '...'
+        print(f'  {C.DIM}│{C.RESET}   {C.DIM}{"Detail:":<{lbl_w}}{C.RESET} {detail}')
+        if risk is not None:
+            print(f'  {C.DIM}│{C.RESET}   {C.DIM}{"Risk:":<{lbl_w}}{C.RESET} {C.BOLD}{risk:.1f}{C.RESET}/10')
+
         if v.get('cves'):
             cve_ids = []
             for c in v['cves'][:3]:
@@ -530,15 +598,9 @@ def show_vulns():
                     cvss_str = f' (CVSS:{cvss})' if cvss else ''
                     cve_ids.append(f'{cid}{cvss_str}')
             if cve_ids:
-                cve_info = f'\n    {C.DIM}CVE:{C.RESET} {", ".join(cve_ids)}'
+                print(f'  {C.DIM}│{C.RESET}   {C.DIM}{"CVE:":<{lbl_w}}{C.RESET} {", ".join(cve_ids)}')
 
-        risk_str = f'  {C.DIM}Risk:{C.RESET} {C.BOLD}{risk:.1f}{C.RESET}/10  ' if risk is not None else ''
-        print(f'  {sev_badge(sev)} {C.BOLD}{v["title"]}{C.RESET} {risk_str}')
-        print(f'    {C.DIM}Host:{C.RESET}   {C.GREEN}{v["host"]}{C.RESET}')
-        print(f'    {C.DIM}Detail:{C.RESET} {v["detail"]}')
-        if cve_info:
-            print(cve_info)
-        print()
+        print(f'  {C.DIM}└{"─" * card_w}┘{C.RESET}')
 
 def show_phases():
     require_scan()
@@ -592,7 +654,8 @@ def show_risk():
         enriched = vulns
 
     score, sev = overall_risk_score(enriched, hosts)
-    print(f'  {C.DIM}Overall Risk:{C.RESET}   {sev_badge(sev)} {C.BOLD}{score}{C.RESET}/10')
+    lbl_w = 16
+    print(f'  {C.DIM}{"Overall Risk:":<{lbl_w}}{C.RESET} {sev_badge(sev)} {C.BOLD}{score}{C.RESET}/10')
     print()
 
     sev_order = {'CRITICAL': 0, 'HIGH': 1, 'MEDIUM': 2, 'LOW': 3}
@@ -661,10 +724,9 @@ def show_cve_lookup(service=None, version=None, all_flag=False):
         return
 
     for svc, ver in sorted(pairs):
-        print(f'\n  {C.BOLD}{C.CYAN}{svc}{C.RESET}', end='')
-        if ver:
-            print(f'  {C.DIM}{ver}{C.RESET}', end='')
-        print()
+        ver_str = f'  {C.DIM}{ver}{C.RESET}' if ver else ''
+        print(f'\n  {C.BOLD}{C.CYAN}● {svc}{C.RESET}{ver_str}')
+        print(f'  {C.DIM}{"─" * 40}{C.RESET}')
 
         try:
             cves = lookup_cve_for_service(svc, ver)
@@ -680,14 +742,15 @@ def show_cve_lookup(service=None, version=None, all_flag=False):
             cve_id = cve.get('id', '') or cve.get('cve_id', '') or 'CVE-????'
             cvss = cve.get('cvss', 'N/A')
             summary = cve.get('summary', '') or ''
-            summary_short = summary[:100] + '...' if len(summary) > 100 else summary
+            summary_short = summary[:90] + '...' if len(summary) > 90 else summary
             try:
                 cvss_num = float(cvss) if cvss and cvss != 'N/A' else 0
             except (ValueError, TypeError):
                 cvss_num = 0
             cvss_col = C.RED if cvss_num >= 7 else C.YELLOW
-            print(f'    {C.BOLD}{cve_id}{C.RESET}  {cvss_col}CVSS:{cvss}{C.RESET}')
-            print(f'      {C.DIM}{summary_short}{C.RESET}')
+            print(f'    {C.BOLD}{cve_id:<20}{C.RESET} {cvss_col}CVSS: {cvss}{C.RESET}')
+            if summary_short:
+                print(f'    {C.DIM}  └─ {summary_short}{C.RESET}')
     print()
 
 # ── New: Report Generation ──────────────────────────────────────────────
@@ -806,15 +869,16 @@ def cmd_scan(target, profile='standard', grab_banners=False,
     t0 = time.time()
 
     banner()
-    print(f'  {C.DIM}Target:{C.RESET}   {C.GREEN}{target}{C.RESET}')
-    print(f'  {C.DIM}Profile:{C.RESET} {C.BOLD}{profile}{C.RESET}')
-    print(f'  {C.DIM}Output:{C.RESET}  {RAW}')
+    lbl_w = 14
+    print(f'  {C.DIM}{"Target:":<{lbl_w}}{C.RESET} {C.GREEN}{target}{C.RESET}')
+    print(f'  {C.DIM}{"Profile:":<{lbl_w}}{C.RESET} {C.BOLD}{profile}{C.RESET}')
+    print(f'  {C.DIM}{"Output:":<{lbl_w}}{C.RESET} {RAW}')
     if grab_banners:
-        print(f'  {C.DIM}Banners:{C.RESET} {C.GREEN}enabled{C.RESET}')
+        print(f'  {C.DIM}{"Banners:":<{lbl_w}}{C.RESET} {C.GREEN}enabled{C.RESET}')
     if aggressive:
-        print(f'  {C.DIM}Aggressive:{C.RESET} {C.RED}enabled (-A: OS, scripts, traceroute){C.RESET}')
+        print(f'  {C.DIM}{"Aggressive:":<{lbl_w}}{C.RESET} {C.RED}enabled (-A: OS, scripts, traceroute){C.RESET}')
     if stealth:
-        print(f'  {C.DIM}Stealth:{C.RESET} {C.GREEN}enabled{C.RESET}')
+        print(f'  {C.DIM}{"Stealth:":<{lbl_w}}{C.RESET} {C.GREEN}enabled{C.RESET}')
     print()
 
     disc_file = RAW / f'discovery_{ts}'
@@ -933,8 +997,9 @@ def cmd_vuln_scan(target, timeout=1200,
         ttl=ttl, badsum=badsum, timing=timing,
     )
     banner()
-    print(f'  {C.DIM}Target:{C.RESET} {C.GREEN}{target}{C.RESET}')
-    print(f'  {C.DIM}Mode:{C.RESET}  NSE vulnerability scan\n')
+    lbl_w = 14
+    print(f'  {C.DIM}{"Target:":<{lbl_w}}{C.RESET} {C.GREEN}{target}{C.RESET}')
+    print(f'  {C.DIM}{"Mode:":<{lbl_w}}{C.RESET} NSE vulnerability scan\n')
 
     ts = datetime.now().strftime('%Y%m%d_%H%M%S')
     vuln_file = RAW / f'vuln_{ts}'
@@ -987,10 +1052,12 @@ def cmd_vuln_scan(target, timeout=1200,
                  f'{C.RED}{sev_counts.get("HIGH", 0)} HIGH{C.RESET}',
                  f'{C.YELLOW}{sev_counts.get("MEDIUM", 0)} MED{C.RESET}',
                  f'{C.GREEN}{sev_counts.get("LOW", 0)} LOW{C.RESET}']
-        print(f'\n  {C.GREEN}[+] {len(vulns)} finding(s):{C.RESET} {", ".join(p for p in parts if p)}')
+        lbl_w = 16
+        print(f'\n  {C.GREEN}[+]{C.RESET} {C.DIM}{"Findings:":<{lbl_w}}{C.RESET} {len(vulns)} total')
+        print(f'      {C.DIM}{"Breakdown:":<{lbl_w}}{C.RESET} {", ".join(p for p in parts if p)}')
         try:
             score, sev = overall_risk_score(used, hosts)
-            print(f'  {C.GREEN}[+] Risk score:{C.RESET} {sev_badge(sev)} {C.BOLD}{score}{C.RESET}/10')
+            print(f'      {C.DIM}{"Risk Score:":<{lbl_w}}{C.RESET} {sev_badge(sev)} {C.BOLD}{score}{C.RESET}/10')
         except Exception:
             pass
     else:
