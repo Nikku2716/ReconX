@@ -1,21 +1,21 @@
 # NSHE — Network Scanning & Host Enumeration
 
-A powerful CLI tool for network reconnaissance, vulnerability scanning, CVE lookup, risk assessment, and report generation — all powered by Nmap.
+A powerful CLI tool for network reconnaissance, vulnerability scanning, CVE lookup, risk assessment, and report generation —- all powered by Nmap.
 
 ## Features
 
-- **Host Discovery** — ping sweeps, ARP scans, live host detection
-- **Port Scanning** — SYN, TCP connect, full 65535 port scans
-- **Service Version Detection** — fingerprint service versions
-- **OS Fingerprinting** — remote OS detection with confidence scoring
-- **Stealth Scanning** — decoys, fragmentation, MAC spoofing, source-port manipulation, custom TTL, badsum, timing templates
-- **NSE Vulnerability Scanning** — Nmap Scripting Engine vuln scripts
-- **CVE Lookup** — online CVE database enrichment (via CIRCL API) with local caching
-- **Risk Scoring** — multi-factor risk assessment per host and overall
-- **Report Generation** — HTML & PDF reports
-- **Scheduled Scanning** — cron-based scheduling with daemon mode
-- **Interactive Menu** — TUI mode for exploring scan results
-- **Dark Dashboard** — standalone HTML dashboard for scan visualization
+- **Host Discovery** -- ping sweeps, ARP scans, live host detection
+- **Port Scanning** -- SYN, TCP connect, full 65535 port scans
+- **Service Version Detection** -- fingerprint service versions
+- **OS Fingerprinting** -- remote OS detection with confidence scoring
+- **Stealth Scanning** -- decoys, fragmentation, MAC spoofing, source-port manipulation, custom TTL, badsum, timing templates
+- **NSE Vulnerability Scanning** -- Nmap Scripting Engine vuln scripts
+- **CVE Lookup** -- online CVE database enrichment (via CIRCL API) with local caching
+- **Risk Scoring** -- multi-factor risk assessment per host and overall
+- **Report Generation** -- HTML & PDF reports
+- **Scheduled Scanning** -- cron-based scheduling with daemon mode
+- **Interactive Menu** -- TUI mode for exploring scan results
+- **Dark Dashboard** -- standalone HTML dashboard for scan visualization
 
 ## Installation
 
@@ -201,11 +201,11 @@ NSHE/
 ## Workflow
 
 ```
-┌──────────────┐     ┌──────────────┐     ┌──────────────┐
-│  Host        │     │  Port/       │     │  Service     │
+┌──────────────┐      ┌──────────────┐      ┌──────────────┐
+│  Host        │      │  Port/       │      │  Service     │
 │  Discovery   │────▶│  Service     │────▶│  Version     │
-│  (nmap -sn)  │     │  Scan        │     │  Detection   │
-└──────────────┘     └──────────────┘     └──────────────┘
+│  (nmap -sn)  │      │  Scan        │      │  Detection   │
+└──────────────┘      └──────────────┘      └──────────────┘
                                                   │
 ┌──────────────┐     ┌──────────────┐             │
 │  OS          │     │  NSE Vuln    │◀───────────┘
