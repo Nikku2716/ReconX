@@ -7,7 +7,7 @@ scans/cve_cache/
 scans/schedule.json
 scans/schedule_scan.log
 reports/
-.opencode/node_modules/
-.opencode/package.json
-.opencode/package-lock.json
-.opencode/bun.lock
+node_modules/
+package.json
+package-lock.json
+bun.lock
