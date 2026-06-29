@@ -1,5 +1,9 @@
 # NSHE — Network Scanning & Host Enumeration
 
+<p align="center">
+  <img src="Screenshots/Screenshot_20260628_132903.png" alt="NSHE Screenshot" width="800">
+</p>
+
 A powerful CLI tool for network reconnaissance, vulnerability scanning, CVE lookup, risk assessment, and report generation —- all powered by Nmap.
 
 ## Features
