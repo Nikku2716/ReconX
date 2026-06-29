@@ -62,7 +62,8 @@ BASE = Path(__file__).resolve().parent.parent
 RAW  = BASE / 'scans' / 'raw'
 PAR  = BASE / 'scans' / 'parsed'
 REP  = BASE / 'reports'
-for d in (RAW, PAR, REP):
+CACHE = BASE / 'scans' / 'cve_cache'
+for d in (RAW, PAR, REP, CACHE):
     d.mkdir(parents=True, exist_ok=True)
 
 # ── Import submodules ───────────────────────────────────────────────────
@@ -97,9 +98,29 @@ def strip_ansi(text):
     """Remove ANSI escape sequences from a string for visible-width calculation."""
     return re.sub(r'\033\[[0-9;]*m', '', str(text))
 
+def display_width(text):
+    """Return the display width of text, counting wide Unicode (emoji, CJK) as 2."""
+    import unicodedata
+    text = strip_ansi(text)
+    w = 0
+    for ch in text:
+        cp = ord(ch)
+        eaw = unicodedata.east_asian_width(ch)
+        if eaw in ('W', 'F'):
+            w += 2
+        elif 0x1F000 <= cp <= 0x1F9FF:
+            w += 2
+        elif 0x20000 <= cp <= 0x2FFFD:
+            w += 2
+        elif 0x30000 <= cp <= 0x3FFFD:
+            w += 2
+        else:
+            w += 1
+    return w
+
 def vis_len(text):
     """Return the visible length of a string (excluding ANSI codes)."""
-    return len(strip_ansi(text))
+    return display_width(text)
 
 def tw():
     return shutil.get_terminal_size((80, 20)).columns
@@ -108,17 +129,17 @@ def hr(c=C.DIM):
     return f'{c}{"─" * tw()}{C.RESET}'
 
 LOGO = [
-    '███╗  ██╗███████╗██╗  ██╗███████╗',
-    '████╗ ██║██╔════╝██║  ██║██╔════╝',
-    '██╔██╗██║███████╗███████║█████╗  ',
-    '██║╚████║╚════██║██╔══██║██╔══╝  ',
-    '██║ ╚███║███████║██║  ██║███████╗',
-    '╚═╝  ╚══╝╚══════╝╚═╝  ╚═╝╚══════╝',
+    '██████╗  ███████╗  ██████╗ ████████╗███╗  ██╗██╗  ██╗ ',
+    '██╔══██╗ ██╔════╝ ██╔════╝ ██╔═══██║████╗ ██║╚██╗██╔╝ ',
+    '██████╔╝ █████╗   ██║      ██║   ██║██╔██╗██║ ╚███╔╝  ',
+    '██╔══██╗ ██╔══╝   ██║      ██║   ██║██║╚████║ ██╔██╗  ',
+    '██║  ██║ ███████╗ ╚██████╗ ╚██████╔╝██║ ╚███║██╔╝ ██╗ ',
+    '╚═╝  ╚═╝ ╚══════╝  ╚══════╝╚═══════╝╚═╝  ╚══╝╚═╝  ╚═╝ ',
 ]
 
 def center(text):
     w = tw()
-    vis = len(re.sub(r'\033\[[0-9;]*m', '', text))
+    vis = display_width(text)
     if vis >= w:
         return text
     return ' ' * ((w - vis) // 2) + text
@@ -127,7 +148,7 @@ def banner():
     w = tw()
     for line in LOGO:
         print(center(f'{C.CYAN}{line}{C.RESET}'))
-    sub = f'{C.CYAN}Network Scanner & Host Enumeration{C.RESET}'
+    sub = f'{C.CYAN}Network Reconnaissance Toolkit{C.RESET}'
     ver = f'{C.DIM}v{C.RESET}{C.CYAN}1.0{C.RESET}'
     print(center(f'{sub}  {ver}'))
     print()
@@ -1090,6 +1111,49 @@ def menu_stats():
     print(f'  {line}')
     print(f'  {C.DIM}{"─" * (tw() - 2)}{C.RESET}')
 
+def clear_data():
+    header('CLEAR SCAN DATA')
+    print(f'  {C.YELLOW}This removes all cached scan data, raw output,{C.RESET}')
+    print(f'  {C.YELLOW}reports, and CVE lookup cache.{C.RESET}')
+    print()
+    conf = input(f'  {C.RED}Are you sure?{C.RESET} (y/N): ').strip().lower()
+    if conf != 'y':
+        print(f'  {C.DIM}Cancelled.{C.RESET}')
+        return
+
+    dirs = {'Raw output': RAW, 'Parsed data': PAR, 'Reports': REP, 'CVE cache': CACHE}
+    extra = [BASE / 'scans' / 'schedule.json', BASE / 'scans' / 'schedule_scan.log']
+    removed = errors = 0
+
+    for label, d in dirs.items():
+        if d.exists():
+            files = [p for p in d.iterdir() if p.is_file()]
+            removed += len(files)
+            for p in files:
+                try:
+                    p.unlink()
+                except Exception:
+                    errors += 1
+            print(f'  {C.GREEN}✓{C.RESET} Cleared {C.DIM}{label}{C.RESET}')
+        else:
+            print(f'  {C.DIM}  {label}: empty{C.RESET}')
+
+    for p in extra:
+        if p.exists():
+            try:
+                p.unlink()
+                removed += 1
+                print(f'  {C.GREEN}✓{C.RESET} Removed {C.DIM}{p.name}{C.RESET}')
+            except Exception:
+                errors += 1
+
+    print()
+    if errors:
+        print(f'  {C.YELLOW}Cleared {removed} file(s) with {errors} error(s).{C.RESET}')
+    else:
+        print(f'  {C.GREEN}Cleared {removed} file(s).{C.RESET}')
+    print(f'  {C.DIM}{"─" * (tw() - 2)}{C.RESET}')
+
 def menu():
     options = [
         ('1', 'Status',     show_status),
@@ -1110,21 +1174,19 @@ def menu():
         has_data = (PAR / 'hosts.txt').exists()
         if has_data:
             menu_stats()
-        else:
-            print(f'  {C.YELLOW}No cached scan data.{C.RESET}')
-            print(f'  {C.DIM}{"─" * (tw() - 2)}{C.RESET}')
 
-        cols = max(2, min(4, tw() // 20))
-        cw = (tw() - 4 - (cols - 1) * 2) // cols
-        rows = [options[i:i+cols] for i in range(0, len(options), cols)]
-        for row in rows:
-            cells = []
-            for key, label, _ in row:
-                badge = f'{C.BOLD}{C.CYAN}[{key}]{C.RESET}'
-                vis = len(f'[{key}] {label}')
-                pad = max(0, cw - vis)
-                cells.append(f'{badge} {label}{" " * pad}')
-            print(f'  {"  ".join(cells)}')
+        w = tw() - 4
+        heading = '⚡ System Interface ⚡'
+        hw = display_width(heading)
+        dash = f'{C.DIM}─{C.RESET}'
+        side = dash * ((w - hw - 2) // 2)
+        print(f'  {side} {C.BOLD}{C.CYAN}{heading}{C.RESET} {side}')
+        print()
+
+        for key, label, _ in options:
+            badge = f'{C.BOLD}{C.CYAN}[{key}]{C.RESET}'
+            print(f'  {badge}  {label}')
+        print()
         print(f'  {C.DIM}{"─" * (tw() - 2)}{C.RESET}')
 
         try:
@@ -1147,6 +1209,10 @@ def menu():
         if choice == 'r':
             fmt = input(f'  {C.YELLOW}Format{C.RESET} (html/pdf, default=html): ').strip().lower() or 'html'
             cmd_report(fmt)
+            input(f'  {C.DIM}Press Enter...{C.RESET}')
+            continue
+        if choice == 'c':
+            clear_data()
             input(f'  {C.DIM}Press Enter...{C.RESET}')
             continue
         hit = False
@@ -1265,7 +1331,7 @@ def main():
     )
     parser.add_argument('command', nargs='?', default=None,
                         choices=['scan', 'vuln-scan', 'cve-lookup', 'risk-score',
-                                 'report',
+                                 'report', 'clear',
                                  'status', 'hosts', 'ports', 'services',
                                  'os', 'vulns', 'phases', 'all', 'menu'])
     parser.add_argument('target', nargs='?', default=None,
@@ -1346,6 +1412,10 @@ def main():
 
     elif args.command == 'menu':
         menu()
+
+    elif args.command == 'clear':
+        banner()
+        clear_data()
 
     elif args.command == 'all':
         show_all()
