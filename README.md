@@ -1,7 +1,7 @@
 # ReconX
 
 <p align="center">
-  <img src="Screenshots/Screenshot_20260628_132903.png" alt="ReconX Screenshot" width="800">
+  <img src="Screenshots/Screenshot1.png" alt="ReconX Screenshot" width="800">
 </p>
 
 A powerful CLI tool for network reconnaissance, vulnerability scanning, CVE lookup, risk assessment, and report generation —- all powered by Nmap.
