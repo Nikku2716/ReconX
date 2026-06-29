@@ -88,7 +88,7 @@ def toggle_schedule(schedule_id, enabled=None):
 def _install_crontab(schedules):
     cli_path = shlex.quote(str(SCRIPTS_DIR / 'cli.py'))
     log_path = shlex.quote(str(BASE / 'scans' / 'schedule_scan.log'))
-    cron_lines = ['# NSHE Scheduled Scans - managed by NSHE scheduler']
+    cron_lines = ['# ReconX Scheduled Scans - managed by ReconX scheduler']
 
     for s in schedules:
         if not s.get('enabled', True):
@@ -108,7 +108,7 @@ def _install_crontab(schedules):
         existing = subprocess.run(['crontab', '-l'], capture_output=True, text=True, timeout=10)
         existing_lines = existing.stdout.strip().splitlines() if existing.returncode == 0 else []
 
-        filtered = [l for l in existing_lines if '# NSHE Scheduled Scans' not in l and 'NSHE' not in l and 'cli.py scan' not in l]
+        filtered = [l for l in existing_lines if '# ReconX Scheduled Scans' not in l and 'ReconX' not in l and 'cli.py scan' not in l]
 
         if len(cron_lines) > 1:
             new_crontab = '\n'.join(filtered + cron_lines) + '\n'
@@ -121,7 +121,7 @@ def _install_crontab(schedules):
         return False
 
 def run_daemon():
-    print('  [*] NSHE Scheduler Daemon starting...')
+    print('  [*] ReconX Scheduler Daemon starting...')
     print('  [*] Checking every 60 seconds for due scans.')
     last_checked = {}
 

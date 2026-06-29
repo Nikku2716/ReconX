@@ -1,7 +1,7 @@
-# NSHE — Network Scanning & Host Enumeration
+# ReconX
 
 <p align="center">
-  <img src="Screenshots/Screenshot_20260628_132903.png" alt="NSHE Screenshot" width="800">
+  <img src="Screenshots/Screenshot_20260628_132903.png" alt="ReconX Screenshot" width="800">
 </p>
 
 A powerful CLI tool for network reconnaissance, vulnerability scanning, CVE lookup, risk assessment, and report generation —- all powered by Nmap.
@@ -30,8 +30,8 @@ sudo dnf install -y nmap                       # Fedora/RHEL
 brew install nmap                              # macOS
 
 # 2. Clone the repository
-git clone https://github.com/Nikku2716/Network-Scanning-And-Host-Enumeration.git
-cd Network-Scanning-And-Host-Enumeration
+git clone https://github.com/Nikku2716/ReconX.git
+cd ReconX
 
 # 3. Installing & creating virtual enviorment
 curl -LsSf https://astral.sh/uv/install.sh | sh
@@ -180,7 +180,7 @@ chmod +x scripts/cli.py
 ## Project Structure
 
 ```
-NSHE/
+ReconX/
 ├── scripts/
 │   ├── cli.py              # Main CLI — scanning, display, orchestration
 │   ├── cve_lookup.py       # CVE database querying (CIRCL API)

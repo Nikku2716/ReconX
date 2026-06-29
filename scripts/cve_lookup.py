@@ -34,7 +34,7 @@ def _save_cache(path, results):
 
 def _api_get(url):
     try:
-        req = urllib.request.Request(url, headers={'User-Agent': 'NSHE/1.0', 'Accept': 'application/json'})
+        req = urllib.request.Request(url, headers={'User-Agent': 'ReconX/1.0', 'Accept': 'application/json'})
         with urllib.request.urlopen(req, timeout=15) as resp:
             return json.loads(resp.read().decode())
     except (urllib.error.URLError, urllib.error.HTTPError, json.JSONDecodeError, OSError):

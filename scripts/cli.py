@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""NSHE — Network Scanning & Host Enumeration CLI
+"""ReconX CLI
 
 Usage:
   ./cli.py scan <target> [--quick|--standard|--deep] [--banners]   Run scan
@@ -1243,7 +1243,7 @@ def main():
         return
 
     parser = argparse.ArgumentParser(
-        description='NSHE — Network Scanning & Host Enumeration CLI',
+        description='ReconX CLI',
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=textwrap.dedent('''\
             Examples:
