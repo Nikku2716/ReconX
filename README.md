@@ -23,41 +23,47 @@ A powerful CLI tool for network reconnaissance, vulnerability scanning, CVE look
 
 ## Installation
 
+### 1. Install Nmap (required)
+
 ```bash
-# 1. Install Nmap (required)
 sudo apt update && sudo apt install -y nmap   # Debian/Ubuntu
 sudo dnf install -y nmap                       # Fedora/RHEL
 brew install nmap                              # macOS
+```
 
-# 2. Clone the repository
+### 2. Install ReconX
+
+```bash
+# Clone the repository
 git clone https://github.com/Nikku2716/ReconX.git
 cd ReconX
 
-# 3. Installing & creating virtual enviorment
-curl -LsSf https://astral.sh/uv/install.sh | sh
-uv venv
+# Install in editable mode (recommended) or directly
+pip install -e .
+```
 
-# 3. Install Python dependencies
-uv pip install -r requirements.txt
+This installs the `reconx` command globally — no need to `cd` into the project or use `./cli.py`.
 
-# 4. Make the CLI executable
-chmod +x scripts/cli.py
+### 3. (Optional) PDF report support
+
+```bash
+pip install fpdf2
 ```
 
 ## Quick Start
 
 ```bash
 # Show help
-./scripts/cli.py --help
+reconx --help
 
 # Scan a subnet
-./scripts/cli.py scan {Target}
+reconx scan {Target}
 
 # Interactive menu
-./scripts/cli.py menu
+reconx menu
 
 # Full report
-./scripts/cli.py all
+reconx all
 ```
 
 ## Usage
@@ -66,122 +72,144 @@ chmod +x scripts/cli.py
 
 ```bash
 # Basic scan (SYN scan on top 1000 ports + version + OS detection)
-./scripts/cli.py scan {Target}
+reconx scan {Target}
 
 # Quick scan — host discovery only
-./scripts/cli.py scan {Target} --quick
+reconx scan {Target} --quick
 
 # Deep scan — all 65535 ports
-./scripts/cli.py scan {Target} --deep
+reconx scan {Target} --deep
 
 # Scan with banner grabbing
-./scripts/cli.py scan {Target} --banners
+reconx scan {Target} --banners
 ```
 
 ### Stealth Scanning
 
 ```bash
 # Full stealth mode (SYN, slow timing, random decoys, fragmentation, random MAC)
-./scripts/cli.py scan target.com --stealth
+reconx scan target.com --stealth
 
 # Custom decoy IPs
-./scripts/cli.py scan 10.0.0.1 --decoy 10.0.0.2,10.0.0.3,10.0.0.4
+reconx scan 10.0.0.1 --decoy 10.0.0.2,10.0.0.3,10.0.0.4
 
 # Fragment packets + custom source port
-./scripts/cli.py scan {Target} --fragment --source-port 53
+reconx scan {Target} --fragment --source-port 53
 
 # MAC spoofing + custom TTL + timing
-./scripts/cli.py scan {Target} --spoof-mac 0 --ttl 64 --timing 1
+reconx scan {Target} --spoof-mac 0 --ttl 64 --timing 1
 
 # Bad checksum scan
-./scripts/cli.py scan {Target} --badsum
+reconx scan {Target} --badsum
 
 # Full stealth with all options
-./scripts/cli.py scan target.com --stealth --decoy RND:5 --source-port 1234 --data-length 100 --ttl 128
+reconx scan target.com --stealth --decoy RND:5 --source-port 1234 --data-length 100 --ttl 128
 
 # Stealth vulnerability scan
-./scripts/cli.py vuln-scan {Target} --stealth
+reconx vuln-scan {Target} --stealth
 ```
 
 ### Vulnerability Scanning
 
 ```bash
 # Run Nmap NSE vulnerability scripts
-./scripts/cli.py vuln-scan {Target}
+reconx vuln-scan {Target}
 ```
 
 ### CVE Lookup
 
 ```bash
 # Lookup CVEs for all discovered services
-./scripts/cli.py cve-lookup --all
+reconx cve-lookup --all
 
 # Lookup CVEs for a specific service
-./scripts/cli.py cve-lookup --service ssh --version "OpenSSH 7.4"
+reconx cve-lookup --service ssh --version "OpenSSH 7.4"
 ```
 
 ### Risk Assessment
 
 ```bash
 # Show overall and per-host risk scores
-./scripts/cli.py risk-score
+reconx risk-score
 ```
 
 ### Report Generation
 
 ```bash
 # HTML report
-./scripts/cli.py report --html
+reconx report --html
 
 # PDF report (requires fpdf2)
-./scripts/cli.py report --pdf
+reconx report --pdf
 
 # Custom output path
-./scripts/cli.py report --html --output ./my_report.html
+reconx report --html --output ./my_report.html
 ```
 
 ### Scheduled Scanning
 
 ```bash
 # List schedules
-./scripts/cli.py schedule list
+reconx schedule list
 
 # Add a daily scan
-./scripts/cli.py schedule add {Target} daily
+reconx schedule add {Target} daily
 
 # Weekly scan with deep profile
-./scripts/cli.py schedule add {Target} weekly --profile deep
+reconx schedule add {Target} weekly --profile deep
 
 # Remove schedule
-./scripts/cli.py schedule remove 1
+reconx schedule remove 1
 
 # Toggle schedule on/off
-./scripts/cli.py schedule toggle 1
+reconx schedule toggle 1
 
 # Run daemon (checks every 60s for due scans)
-./scripts/cli.py schedule daemon
+reconx schedule daemon
 ```
 
 ### Results Display
 
 ```bash
-./scripts/cli.py status        # Scan summary
-./scripts/cli.py hosts         # Live hosts
-./scripts/cli.py ports         # Open ports
-./scripts/cli.py services      # Service versions
-./scripts/cli.py os            # OS fingerprints
-./scripts/cli.py vulns         # Vulnerability findings
-./scripts/cli.py phases        # Scan phase breakdown
-./scripts/cli.py all           # Full report
-./scripts/cli.py menu          # Interactive menu
+reconx status        # Scan summary
+reconx hosts         # Live hosts
+reconx ports         # Open ports
+reconx services      # Service versions
+reconx os            # OS fingerprints
+reconx vulns         # Vulnerability findings
+reconx phases        # Scan phase breakdown
+reconx all           # Full report
+reconx menu          # Interactive menu
 ```
 
+### Data Management
+
+```bash
+# Clear all cached scan data, raw output, reports, and CVE cache
+reconx clear
+```
+
+### Uninstall
+
+```bash
+# Remove ReconX and optionally clean up scan data
+reconx uninstall
+```
+
+Or remove manually:
+
+```bash
+pip uninstall reconx
+rm -rf /path/to/ReconX
+```
 
 ## Project Structure
 
 ```
 ReconX/
+├── pyproject.toml          # Package config & entry point
 ├── scripts/
+│   ├── __init__.py
 │   ├── cli.py              # Main CLI — scanning, display, orchestration
 │   ├── cve_lookup.py       # CVE database querying (CIRCL API)
 │   ├── report_gen.py       # HTML & PDF report generation
@@ -200,7 +228,7 @@ ReconX/
 
 - **Python 3.8+**
 - **Nmap 7.x** — must be installed and on PATH
-- **fpdf2** — optional, for PDF report generation (`pip install fpdf2`)
+- **fpdf2** — optional, for PDF report generation
 
 ## Workflow
 

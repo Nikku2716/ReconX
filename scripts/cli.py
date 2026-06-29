@@ -2,28 +2,29 @@
 """ReconX CLI
 
 Usage:
-  ./cli.py scan <target> [--quick|--standard|--deep] [--banners]   Run scan
-  ./cli.py scan <target> --aggressive                               Aggressive scan (-A: OS, scripts, traceroute)
-  ./cli.py scan <target> --stealth                                  Stealth scan (decoys, fragment, slow timing)
-  ./cli.py scan <target> --decoy IP1,IP2 --fragment --spoof-mac 0  Custom evasion
-  ./cli.py vuln-scan <target>                                       Run NSE vulnerability scan
-  ./cli.py cve-lookup [--service SVC --version VER | --all]        CVE database lookup
-  ./cli.py risk-score                                               Show risk assessment
-  ./cli.py report [--html|--pdf] [--output FILE]                    Generate report
-  ./cli.py schedule list                                            List scheduled scans
-  ./cli.py schedule add <target> <interval> [--profile PROFILE]     Add scheduled scan
-  ./cli.py schedule remove <id>                                     Remove scheduled scan
-  ./cli.py schedule toggle <id>                                     Enable/disable schedule
-  ./cli.py schedule daemon                                          Run scheduler daemon
-  ./cli.py status                                                   Scan summary
-  ./cli.py hosts                                                    Live hosts
-  ./cli.py ports                                                    Open ports
-  ./cli.py services                                                 Service versions
-  ./cli.py os                                                       OS fingerprints
-  ./cli.py vulns                                                    Vulnerability findings
-  ./cli.py phases                                                   Scan phases
-  ./cli.py all                                                      Full report
-  ./cli.py menu                                                     Interactive menu
+  reconx scan <target> [--quick|--standard|--deep] [--banners]   Run scan
+  reconx scan <target> --aggressive                               Aggressive scan (-A: OS, scripts, traceroute)
+  reconx scan <target> --stealth                                  Stealth scan (decoys, fragment, slow timing)
+  reconx scan <target> --decoy IP1,IP2 --fragment --spoof-mac 0  Custom evasion
+  reconx vuln-scan <target>                                       Run NSE vulnerability scan
+  reconx cve-lookup [--service SVC --version VER | --all]        CVE database lookup
+  reconx risk-score                                               Show risk assessment
+  reconx report [--html|--pdf] [--output FILE]                    Generate report
+  reconx schedule list                                            List scheduled scans
+  reconx schedule add <target> <interval> [--profile PROFILE]     Add scheduled scan
+  reconx schedule remove <id>                                     Remove scheduled scan
+  reconx schedule toggle <id>                                     Enable/disable schedule
+  reconx schedule daemon                                          Run scheduler daemon
+  reconx status                                                   Scan summary
+  reconx hosts                                                    Live hosts
+  reconx ports                                                    Open ports
+  reconx services                                                 Service versions
+  reconx os                                                       OS fingerprints
+  reconx vulns                                                    Vulnerability findings
+  reconx phases                                                   Scan phases
+  reconx all                                                      Full report
+  reconx menu                                                     Interactive menu
+  reconx uninstall                                                Remove ReconX
 
 Aggressive options:
   --aggressive              Aggressive scan (-A: OS, version, scripts, traceroute, T4)
@@ -438,7 +439,7 @@ def load_meta():
 def require_scan():
     if not (PAR / 'hosts.txt').exists():
         print(f'{C.RED}No scan data found.{C.RESET}')
-        print(f'  Run: {C.GREEN}./scripts/cli.py scan <target>{C.RESET}')
+        print(f'  Run: {C.GREEN}reconx scan <target>{C.RESET}')
         sys.exit(1)
 
 # ── Display Functions ───────────────────────────────────────────────────
@@ -455,7 +456,7 @@ def show_status():
         print(f'  {C.DIM}{"Duration:":<{lbl_w}}{C.RESET} {meta.get("duration", "?")}')
     else:
         print(f'  {C.YELLOW}No scans have been run yet.{C.RESET}')
-        print(f'  Run: {C.GREEN}./scripts/cli.py scan <target>{C.RESET}\n')
+        print(f'  Run: {C.GREEN}reconx scan <target>{C.RESET}\n')
         return
     print()
     n_hosts = len(hosts)
@@ -1002,7 +1003,7 @@ def cmd_scan(target, profile='standard', grab_banners=False,
     save_ports(hosts)
     save_meta(target, time.time() - t0)
     print(f'\n  {C.GREEN}[+] Scan complete.{C.RESET}')
-    print(f'  {C.DIM}Results cached. Use ./scripts/cli.py menu to explore.{C.RESET}\n')
+    print(f'  {C.DIM}Results cached. Use reconx menu to explore.{C.RESET}\n')
 
 def cmd_vuln_scan(target, timeout=1200,
                   aggressive=False, stealth=False, decoy=None,
@@ -1154,6 +1155,66 @@ def clear_data():
         print(f'  {C.GREEN}Cleared {removed} file(s).{C.RESET}')
     print(f'  {C.DIM}{"─" * (tw() - 2)}{C.RESET}')
 
+def cmd_uninstall():
+    """Uninstall ReconX from the system."""
+    header('UNINSTALL RECONX')
+    print(f'  {C.YELLOW}This will remove the ReconX package from your system.{C.RESET}')
+    print()
+
+    has_pip = shutil.which('pip') or shutil.which(f'pip{sys.version_info.major}.{sys.version_info.minor}')
+
+    if not has_pip:
+        try:
+            import importlib.metadata
+            importlib.metadata.distribution('reconx')
+        except (importlib.metadata.PackageNotFoundError, ImportError):
+            print(f'  {C.YELLOW}ReconX is not installed as a pip package.{C.RESET}')
+            print(f'  {C.DIM}Remove the project directory manually:{C.RESET}')
+            print(f'    rm -rf {BASE}')
+            print()
+            return
+
+        print(f'  {C.YELLOW}pip not found. Uninstall manually:{C.RESET}')
+    else:
+        try:
+            import importlib.metadata
+            importlib.metadata.distribution('reconx')
+        except (importlib.metadata.PackageNotFoundError, ImportError):
+            print(f'  {C.YELLOW}ReconX is not installed as a pip package.{C.RESET}')
+            print(f'  {C.DIM}Remove the project directory manually:{C.RESET}')
+            print(f'    rm -rf {BASE}')
+            print()
+            return
+
+        print(f'  {C.RED}Are you sure you want to remove ReconX?{C.RESET}')
+        keep_data = input(f'  {C.YELLOW}Keep scan data and reports?{C.RESET} (Y/n): ').strip().lower()
+
+        try:
+            subprocess.run(
+                [sys.executable, '-m', 'pip', 'uninstall', 'reconx', '-y'],
+                capture_output=True, text=True, check=True,
+            )
+            print(f'  {C.GREEN}✓{C.RESET} ReconX uninstalled.{C.RESET}')
+        except subprocess.CalledProcessError as e:
+            print(f'  {C.RED}Error:{C.RESET} {e.stderr.strip() or e}')
+            print(f'  {C.YELLOW}Try:{C.RESET} pip uninstall reconx')
+        except FileNotFoundError:
+            print(f'  {C.YELLOW}pip not available. Uninstall manually:{C.RESET}')
+            print(f'    pip uninstall reconx')
+            print(f'    rm -rf {BASE}')
+            return
+
+    if keep_data != 'n':
+        print(f'  {C.DIM}Scan data preserved at:{C.RESET} {BASE / "scans"}')
+        print(f'  {C.DIM}Reports preserved at:{C.RESET} {REP}')
+    else:
+        clear_data()
+        print(f'  {C.GREEN}✓{C.RESET} All scan data removed.{C.RESET}')
+
+    print(f'\n  {C.DIM}To remove the project directory manually:{C.RESET}')
+    print(f'    rm -rf {BASE}')
+    print()
+
 def menu():
     options = [
         ('1', 'Status',     show_status),
@@ -1237,7 +1298,7 @@ def main():
             header('SCHEDULED SCANS')
             if not schedules:
                 print(f'  {C.DIM}No scheduled scans. Add one with:{C.RESET}')
-                print(f'  {C.GREEN}./scripts/cli.py schedule add <target> <interval>{C.RESET}')
+                print(f'  {C.GREEN}reconx schedule add <target> <interval>{C.RESET}')
             else:
                 rows = []
                 for s in schedules:
@@ -1313,25 +1374,25 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=textwrap.dedent('''\
             Examples:
-              ./cli.py scan 192.168.1.0/24 --deep --banners  Full scan with banners
-              ./cli.py scan 192.168.1.0/24 --aggressive       Aggressive scan (OS, scripts, traceroute)
-              ./cli.py scan target.com --stealth              Stealth scan
-              ./cli.py scan 10.0.0.1 --decoy RND:5 --fragment --source-port 53  Custom evasion
-              ./cli.py vuln-scan 192.168.1.10                NSE vuln scan
-              ./cli.py vuln-scan 10.0.0.1 --stealth          Stealth vuln scan
-              ./cli.py schedule add 10.0.0.0/24 daily       Schedule daily scan
-              ./cli.py schedule daemon                       Run scheduler
-              ./cli.py risk-score                           Risk assessment
-              ./cli.py cve-lookup --all                     Lookup CVEs for all services
-              ./cli.py report --html                        Generate HTML report
-              ./cli.py report --pdf                         Generate PDF report
-              ./cli.py all                                  Full report
-              ./cli.py menu                                 Interactive mode
+              reconx scan 192.168.1.0/24 --deep --banners  Full scan with banners
+              reconx scan 192.168.1.0/24 --aggressive       Aggressive scan (OS, scripts, traceroute)
+              reconx scan target.com --stealth              Stealth scan
+              reconx scan 10.0.0.1 --decoy RND:5 --fragment --source-port 53  Custom evasion
+              reconx vuln-scan 192.168.1.10                NSE vuln scan
+              reconx vuln-scan 10.0.0.1 --stealth          Stealth vuln scan
+              reconx schedule add 10.0.0.0/24 daily       Schedule daily scan
+              reconx schedule daemon                       Run scheduler
+              reconx risk-score                           Risk assessment
+              reconx cve-lookup --all                     Lookup CVEs for all services
+              reconx report --html                        Generate HTML report
+              reconx report --pdf                         Generate PDF report
+              reconx all                                  Full report
+              reconx menu                                 Interactive mode
         '''),
     )
     parser.add_argument('command', nargs='?', default=None,
                         choices=['scan', 'vuln-scan', 'cve-lookup', 'risk-score',
-                                 'report', 'clear',
+                                 'report', 'clear', 'uninstall',
                                  'status', 'hosts', 'ports', 'services',
                                  'os', 'vulns', 'phases', 'all', 'menu'])
     parser.add_argument('target', nargs='?', default=None,
@@ -1416,6 +1477,9 @@ def main():
     elif args.command == 'clear':
         banner()
         clear_data()
+
+    elif args.command == 'uninstall':
+        cmd_uninstall()
 
     elif args.command == 'all':
         show_all()

@@ -1,0 +1,18 @@
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "reconx"
+version = "1.0.0"
+description = "Network Reconnaissance Toolkit"
+requires-python = ">=3.8"
+dependencies = [
+    "fpdf2>=2.7.0",
+]
+
+[project.scripts]
+reconx = "scripts.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["scripts*"]

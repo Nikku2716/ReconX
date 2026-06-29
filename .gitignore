@@ -1,6 +1,7 @@
 __pycache__/
 *.pyc
 *.pyo
+.venv/
 scans/raw/
 scans/parsed/
 scans/cve_cache/
