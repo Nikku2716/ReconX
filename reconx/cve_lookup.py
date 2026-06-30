@@ -4,11 +4,8 @@ import re
 import time
 import urllib.request
 import urllib.error
-from pathlib import Path
 
-BASE = Path(__file__).resolve().parent.parent
-CVE_CACHE_DIR = BASE / 'scans' / 'cve_cache'
-CVE_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+from reconx.paths import CACHE as CVE_CACHE_DIR
 
 CIRCL_API = 'https://cve.circl.lu/api'
 CACHE_TTL = 86400

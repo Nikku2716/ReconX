@@ -12,7 +12,7 @@ dependencies = [
 ]
 
 [project.scripts]
-reconx = "scripts.cli:main"
+reconx = "reconx.cli:main"
 
 [tool.setuptools.packages.find]
-include = ["scripts*"]
+include = ["reconx*"]

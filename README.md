@@ -23,32 +23,99 @@ A powerful CLI tool for network reconnaissance, vulnerability scanning, CVE look
 
 ## Installation
 
-### 1. Install Nmap (required)
+### Prerequisites
+
+- **Python 3.8+**
+- **Nmap 7.x** — must be installed and on `PATH`
+- **pip** or **pipx** (recommended)
+
+### 1. Install Nmap
 
 ```bash
-sudo apt update && sudo apt install -y nmap   # Debian/Ubuntu
-sudo dnf install -y nmap                       # Fedora/RHEL
-brew install nmap                              # macOS
+# Debian / Ubuntu
+sudo apt update && sudo apt install -y nmap
+
+# Fedora / RHEL
+sudo dnf install -y nmap
+
+# Arch Linux
+sudo pacman -S nmap
+
+# macOS
+brew install nmap
+
+# Windows
+winget install InsecureCommunity.Nmap
+# or download from https://nmap.org/download.html
 ```
 
 ### 2. Install ReconX
 
+#### Option A (recommended) — pipx
+
+Isolates ReconX in its own environment and makes the `reconx` command available globally.
+
 ```bash
-# Clone the repository
+# Install pipx if needed
+python3 -m pip install --user pipx
+python3 -m pipx ensurepath
+
+# Clone and install
 git clone https://github.com/Nikku2716/ReconX.git
 cd ReconX
+pipx install .
+```
 
-# Install in editable mode (recommended) or directly
+After `pipx ensurepath`, restart your terminal or run `source ~/.bashrc`.
+
+#### Option B — pip install --user
+
+Installs into the user site-packages directory.
+
+```bash
+git clone https://github.com/Nikku2716/ReconX.git
+cd ReconX
+pip install --user .
+```
+
+Ensure `~/.local/bin` is on your `PATH`:
+
+```bash
+# Linux
+echo 'export PATH=$HOME/.local/bin:$PATH' >> ~/.bashrc
+source ~/.bashrc
+
+# Windows (PowerShell)
+# Add %APPDATA%\Python\Scripts to your PATH environment variable
+```
+
+#### Option C — editable install (development)
+
+```bash
+git clone https://github.com/Nikku2716/ReconX.git
+cd ReconX
 pip install -e .
 ```
 
-This installs the `reconx` command globally — no need to `cd` into the project or use `./cli.py`.
+This links the source tree directly — changes take effect immediately but `reconx` is still available globally.
 
-### 3. (Optional) PDF report support
+### 3. Verify
+
+```bash
+reconx --help
+```
+
+The `reconx` command is now available from any terminal, even after reboot, without activating a virtual environment.
+
+### 4. (Optional) PDF report support
 
 ```bash
 pip install fpdf2
+# or if using pipx:
+pipx run reconx pip install fpdf2
 ```
+
+> **Note:** Data directory: scan results, reports, and CVE cache are stored in `~/.local/share/reconx/` (Linux), `~/Library/Application Support/reconx/` (macOS), or `%APPDATA%/reconx/` (Windows).
 
 ## Quick Start
 
@@ -56,8 +123,13 @@ pip install fpdf2
 # Show help
 reconx --help
 
-# Scan a subnet
-reconx scan {Target}
+# Show version
+reconx --version
+
+# Scan a target (default action — no "scan" subcommand needed)
+reconx example.com
+reconx 192.168.1.1
+reconx https://example.com
 
 # Interactive menu
 reconx menu
@@ -70,40 +142,46 @@ reconx all
 
 ### Scanning
 
+The default action is to scan — just pass a target:
+
 ```bash
 # Basic scan (SYN scan on top 1000 ports + version + OS detection)
-reconx scan {Target}
+reconx example.com
+reconx 192.168.1.0/24
 
 # Quick scan — host discovery only
-reconx scan {Target} --quick
+reconx {Target} --quick
 
 # Deep scan — all 65535 ports
-reconx scan {Target} --deep
+reconx {Target} --deep
+
+# Standard scan (explicit)
+reconx {Target} --standard
 
 # Scan with banner grabbing
-reconx scan {Target} --banners
+reconx {Target} --banners
 ```
 
 ### Stealth Scanning
 
 ```bash
 # Full stealth mode (SYN, slow timing, random decoys, fragmentation, random MAC)
-reconx scan target.com --stealth
+reconx target.com --stealth
 
 # Custom decoy IPs
-reconx scan 10.0.0.1 --decoy 10.0.0.2,10.0.0.3,10.0.0.4
+reconx 10.0.0.1 --decoy 10.0.0.2,10.0.0.3,10.0.0.4
 
 # Fragment packets + custom source port
-reconx scan {Target} --fragment --source-port 53
+reconx {Target} --fragment --source-port 53
 
 # MAC spoofing + custom TTL + timing
-reconx scan {Target} --spoof-mac 0 --ttl 64 --timing 1
+reconx {Target} --spoof-mac 0 --ttl 64 --timing 1
 
 # Bad checksum scan
-reconx scan {Target} --badsum
+reconx {Target} --badsum
 
 # Full stealth with all options
-reconx scan target.com --stealth --decoy RND:5 --source-port 1234 --data-length 100 --ttl 128
+reconx target.com --stealth --decoy RND:5 --source-port 1234 --data-length 100 --ttl 128
 
 # Stealth vulnerability scan
 reconx vuln-scan {Target} --stealth
@@ -196,11 +274,11 @@ reconx clear
 reconx uninstall
 ```
 
-Or remove manually:
+Remove manually:
 
 ```bash
 pip uninstall reconx
-rm -rf /path/to/ReconX
+rm -rf ~/.local/share/reconx    # Linux (adjust for your OS)
 ```
 
 ## Project Structure
@@ -208,18 +286,18 @@ rm -rf /path/to/ReconX
 ```
 ReconX/
 ├── pyproject.toml          # Package config & entry point
-├── scripts/
-│   ├── __init__.py
-│   ├── cli.py              # Main CLI — scanning, display, orchestration
+├── reconx/
+│   ├── __init__.py         # Package init, version
+│   ├── cli.py              # Entry point & argument parsing
+│   ├── display.py          # Terminal UI, tables, show commands, menu
+│   ├── scanner.py          # Nmap orchestration, parsers, cache I/O
+│   ├── paths.py            # XDG-compliant data directory paths
 │   ├── cve_lookup.py       # CVE database querying (CIRCL API)
 │   ├── report_gen.py       # HTML & PDF report generation
 │   ├── risk_scoring.py     # Multi-factor risk assessment engine
 │   └── scheduler.py        # Cron-based scan scheduler
-├── scans/
-│   ├── raw/                # Raw Nmap XML/gnmap/nmap output
-│   ├── parsed/             # Parsed tabular data (hosts, ports, vulns)
-│   └── cve_cache/          # Cached CVE lookups (24h TTL)
-├── reports/                # Generated HTML/PDF reports
+├── scans/                  # (legacy — data now stored in XDG dir)
+├── reports/                # (legacy — data now stored in XDG dir)
 ├── requirements.txt        # Python dependencies
 └── README.md               # This file
 ```
@@ -227,8 +305,17 @@ ReconX/
 ## Requirements
 
 - **Python 3.8+**
-- **Nmap 7.x** — must be installed and on PATH
+- **Nmap 7.x** — must be installed and on `PATH`
 - **fpdf2** — optional, for PDF report generation
+- **pipx** — recommended for isolated global installation
+
+### Data Storage
+
+| Platform | Data directory |
+|---|---|
+| Linux | `~/.local/share/reconx/` (or `$XDG_DATA_HOME/reconx/`) |
+| macOS | `~/Library/Application Support/reconx/` |
+| Windows | `%APPDATA%/reconx/` |
 
 ## Workflow
 

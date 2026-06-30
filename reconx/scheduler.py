@@ -1,16 +1,13 @@
 import json
 import os
 import shlex
-import shutil
 import subprocess
 import sys
 import time
 from datetime import datetime
 from pathlib import Path
 
-BASE = Path(__file__).resolve().parent.parent
-SCHEDULE_FILE = BASE / 'scans' / 'schedule.json'
-SCRIPTS_DIR = BASE / 'scripts'
+from reconx.paths import SCHEDULE_FILE, SCHEDULE_LOG, DATA_DIR
 
 INTERVAL_MAP = {
     'hourly': ('0 * * * *', 3600),
@@ -86,8 +83,7 @@ def toggle_schedule(schedule_id, enabled=None):
     return False, False
 
 def _install_crontab(schedules):
-    cli_path = shlex.quote(str(SCRIPTS_DIR / 'cli.py'))
-    log_path = shlex.quote(str(BASE / 'scans' / 'schedule_scan.log'))
+    log_path = shlex.quote(str(SCHEDULE_LOG))
     cron_lines = ['# ReconX Scheduled Scans - managed by ReconX scheduler']
 
     for s in schedules:
@@ -101,7 +97,7 @@ def _install_crontab(schedules):
             flags = ' --deep'
         elif profile == 'quick':
             flags = ' --quick'
-        cmd = f'{sys.executable} {cli_path} scan {target}{flags} > {log_path} 2>&1'
+        cmd = f'reconx scan {target}{flags} >> {log_path} 2>&1'
         cron_lines.append(f'{cron_expr} {cmd}')
 
     try:
@@ -148,14 +144,13 @@ def run_daemon():
                 profile = s.get('profile', 'standard')
                 print(f'  [+] Running scheduled scan #{sid}: {target} ({profile})')
                 try:
-                    cli_path = SCRIPTS_DIR / 'cli.py'
                     flags = []
                     if profile == 'deep':
                         flags = ['--deep']
                     elif profile == 'quick':
                         flags = ['--quick']
                     subprocess.run(
-                        [sys.executable, str(cli_path), 'scan', target] + flags,
+                        ['reconx', 'scan', target] + flags,
                         capture_output=True, timeout=1800,
                     )
                     print(f'  [+] Scan #{sid} completed.')

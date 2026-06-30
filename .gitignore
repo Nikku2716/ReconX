@@ -8,6 +8,7 @@ scans/cve_cache/
 scans/schedule.json
 scans/schedule_scan.log
 reports/
+*.egg-info/
 node_modules/
 package.json
 package-lock.json

@@ -7,7 +7,7 @@ from datetime import datetime
 from pathlib import Path
 from xml.sax.saxutils import escape as xml_escape
 
-BASE = Path(__file__).resolve().parent.parent
+from reconx.paths import PAR, REP
 
 try:
     from fpdf import FPDF
@@ -18,7 +18,7 @@ except ImportError:
 
 def load_hosts():
     import csv
-    p = BASE / 'scans' / 'parsed' / 'hosts.txt'
+    p = PAR / 'hosts.txt'
     if not p.exists():
         return {}
     hosts = {}
@@ -32,7 +32,7 @@ def load_hosts():
                 'os_conf': int(row.get('os_conf', 0)),
                 'ports': [],
             }
-    pp = BASE / 'scans' / 'parsed' / 'ports.txt'
+    pp = PAR / 'ports.txt'
     if pp.exists():
         with open(pp) as f:
             for row in csv.DictReader(f, delimiter='\t'):
@@ -50,7 +50,7 @@ def load_hosts():
 
 def load_vulns():
     import csv
-    p = BASE / 'scans' / 'parsed' / 'vulns.txt'
+    p = PAR / 'vulns.txt'
     if not p.exists():
         return []
     with open(p) as f:
@@ -58,7 +58,7 @@ def load_vulns():
 
 
 def load_meta():
-    p = BASE / 'scans' / 'parsed' / 'meta.txt'
+    p = PAR / 'meta.txt'
     if not p.exists():
         return None
     meta = {}
@@ -76,7 +76,7 @@ def generate_html_report(output_path=None):
     meta = load_meta()
 
     if output_path is None:
-        output_path = BASE / 'reports' / f'report_{datetime.now().strftime("%Y%m%d_%H%M%S")}.html'
+        output_path = REP / f'report_{datetime.now().strftime("%Y%m%d_%H%M%S")}.html'
 
     output_path = Path(output_path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -297,7 +297,7 @@ def generate_pdf_report(output_path=None):
     meta = load_meta()
 
     if output_path is None:
-        output_path = BASE / 'reports' / f'report_{datetime.now().strftime("%Y%m%d_%H%M%S")}.pdf'
+        output_path = REP / f'report_{datetime.now().strftime("%Y%m%d_%H%M%S")}.pdf'
 
     output_path = Path(output_path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
